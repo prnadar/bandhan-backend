@@ -1,0 +1,116 @@
+"""
+Application configuration using pydantic-settings.
+All values sourced from environment variables — 12-factor compliant.
+"""
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import AnyHttpUrl, EmailStr, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+    )
+
+    # ── App ──────────────────────────────────────────────────────────────
+    APP_NAME: str = "Bandhan API"
+    APP_VERSION: str = "1.0.0"
+    ENVIRONMENT: Literal["development", "staging", "production"] = "development"
+    DEBUG: bool = False
+    API_PREFIX: str = "/api/v1"
+    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
+
+    # ── Database ─────────────────────────────────────────────────────────
+    DATABASE_URL: str
+    DB_POOL_SIZE: int = 20
+    DB_MAX_OVERFLOW: int = 40
+    DB_POOL_TIMEOUT: int = 30
+
+    # ── Redis ────────────────────────────────────────────────────────────
+    REDIS_URL: str = "redis://localhost:6379"
+
+    # ── Auth0 ────────────────────────────────────────────────────────────
+    AUTH0_DOMAIN: str
+    AUTH0_CLIENT_ID: str
+    AUTH0_CLIENT_SECRET: str
+    AUTH0_AUDIENCE: str
+
+    # ── AWS / S3 ─────────────────────────────────────────────────────────
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_S3_BUCKET: str = "bandhan-media-dev"
+    AWS_REGION: str = "ap-south-1"
+    AWS_CLOUDFRONT_DOMAIN: str = ""
+
+    # ── Razorpay ─────────────────────────────────────────────────────────
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+    RAZORPAY_WEBHOOK_SECRET: str = ""
+
+    # ── Stripe (diaspora / international) ────────────────────────────────
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+
+    # ── Twilio ───────────────────────────────────────────────────────────
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_PHONE_NUMBER: str = ""
+    TWILIO_WHATSAPP_NUMBER: str = ""
+
+    # ── AI / ML ──────────────────────────────────────────────────────────
+    OPENAI_API_KEY: str = ""
+    ANTHROPIC_API_KEY: str = ""
+    PINECONE_API_KEY: str = ""
+    PINECONE_INDEX: str = "bandhan-profiles"
+
+    # ── Email ────────────────────────────────────────────────────────────
+    SENDGRID_API_KEY: str = ""
+    SENDGRID_FROM_EMAIL: EmailStr = "hello@bandhan.in"  # type: ignore[assignment]
+
+    # ── Multi-tenancy / White-label ───────────────────────────────────────
+    # Each tenant gets their own subdomain: {slug}.bandhan.in
+    DEFAULT_TENANT_SLUG: str = "bandhan"
+    TENANT_HEADER: str = "X-Tenant-ID"
+
+    # ── Rate limiting ────────────────────────────────────────────────────
+    RATE_LIMIT_DEFAULT: str = "100/minute"
+    RATE_LIMIT_AUTH: str = "10/minute"
+
+    # ── OTP ──────────────────────────────────────────────────────────────
+    OTP_EXPIRY_SECONDS: int = 300
+    OTP_LENGTH: int = 6
+
+    # ── Celery ───────────────────────────────────────────────────────────
+    CELERY_BROKER_URL: str = "redis://localhost:6379/1"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
+
+    # ── Subscription plans (prices in paise / lowest currency unit) ──────
+    SILVER_PRICE_INR: int = 89900   # Rs 899
+    GOLD_PRICE_INR: int = 249900    # Rs 2,499
+    PLATINUM_PRICE_INR: int = 399900  # Rs 3,999
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def parse_origins(cls, v: str | list[str]) -> list[str]:
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",")]
+        return v
+
+    @property
+    def is_production(self) -> bool:
+        return self.ENVIRONMENT == "production"
+
+    @property
+    def media_base_url(self) -> str:
+        if self.AWS_CLOUDFRONT_DOMAIN:
+            return f"https://{self.AWS_CLOUDFRONT_DOMAIN}"
+        return f"https://{self.AWS_S3_BUCKET}.s3.{self.AWS_REGION}.amazonaws.com"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()  # type: ignore[call-arg]
