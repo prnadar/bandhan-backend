@@ -22,14 +22,18 @@ _db_url = settings.DATABASE_URL.replace(
     "postgres://", "postgresql+asyncpg://"
 )
 
-engine = create_async_engine(
-    _db_url,
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
-    pool_timeout=settings.DB_POOL_TIMEOUT,
-    pool_pre_ping=True,  # detect stale connections
-    echo=settings.DEBUG,
-)
+_is_sqlite = _db_url.startswith("sqlite")
+_engine_kwargs: dict = {"pool_pre_ping": True, "echo": settings.DEBUG}
+if not _is_sqlite:
+    _engine_kwargs.update(
+        {
+            "pool_size": settings.DB_POOL_SIZE,
+            "max_overflow": settings.DB_MAX_OVERFLOW,
+            "pool_timeout": settings.DB_POOL_TIMEOUT,
+        }
+    )
+
+engine = create_async_engine(_db_url, **_engine_kwargs)
 
 AsyncSessionLocal = async_sessionmaker(
     engine,
