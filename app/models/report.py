@@ -7,8 +7,7 @@ from datetime import datetime
 
 import enum
 
-from sqlalchemy import Boolean, Enum, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, Enum, JSON, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import TenantModel
@@ -40,23 +39,23 @@ class ReportStatus(str, enum.Enum):
 class Report(TenantModel):
     __tablename__ = "reports"
 
-    reporter_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    reporter_id: Mapped[uuid.UUID] = mapped_column(Uuid(), nullable=False, index=True)
     reported_user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True
+        Uuid(), nullable=False, index=True
     )
 
     category: Mapped[ReportCategory] = mapped_column(Enum(ReportCategory), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Evidence (message IDs, screenshot S3 keys)
-    evidence: Mapped[list] = mapped_column(nullable=False, default=list)
+    evidence: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
 
     status: Mapped[ReportStatus] = mapped_column(
         Enum(ReportStatus), nullable=False, default=ReportStatus.OPEN, index=True
     )
 
     # Admin resolution
-    admin_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    admin_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
     admin_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(nullable=True)
 

@@ -5,8 +5,7 @@ Stored separately so they can be updated independently of profile.
 import uuid
 from typing import Any
 
-from sqlalchemy import Float, String
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import Float, JSON, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import TenantModel
@@ -16,7 +15,7 @@ class PersonalityScore(TenantModel):
     __tablename__ = "personality_scores"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, unique=True, index=True
+        Uuid(), nullable=False, unique=True, index=True
     )
 
     # Big Five dimensions (0.0 – 1.0)
@@ -35,7 +34,7 @@ class PersonalityScore(TenantModel):
 
     # Raw quiz responses (60 questions, stored for re-scoring if algorithm changes)
     quiz_responses: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, default=dict
+        JSON, nullable=False, default=dict
     )
 
     # Pinecone vector ID (for semantic similarity lookup)

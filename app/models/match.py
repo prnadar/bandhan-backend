@@ -10,8 +10,7 @@ from typing import Any
 
 import enum
 
-from sqlalchemy import Boolean, Enum, Float, Integer, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import Boolean, Enum, Float, Integer, JSON, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import TenantModel
@@ -46,15 +45,15 @@ class Match(TenantModel):
         UniqueConstraint("tenant_id", "user_a_id", "user_b_id", name="uq_matches_pair"),
     )
 
-    user_a_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
-    user_b_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    user_a_id: Mapped[uuid.UUID] = mapped_column(Uuid(), nullable=False, index=True)
+    user_b_id: Mapped[uuid.UUID] = mapped_column(Uuid(), nullable=False, index=True)
 
     # AI-generated compatibility score (0-100)
     compatibility_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
 
     # Breakdown by dimension (weights from PRD)
     compatibility_breakdown: Mapped[dict[str, Any]] = mapped_column(
-        JSONB,
+        JSON,
         nullable=False,
         default=lambda: {
             "values": 0.0,         # 25%
@@ -85,9 +84,9 @@ class Interest(TenantModel):
         UniqueConstraint("tenant_id", "sender_id", "receiver_id", name="uq_interests_pair"),
     )
 
-    sender_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
-    receiver_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
-    match_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    sender_id: Mapped[uuid.UUID] = mapped_column(Uuid(), nullable=False, index=True)
+    receiver_id: Mapped[uuid.UUID] = mapped_column(Uuid(), nullable=False, index=True)
+    match_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
 
     status: Mapped[InterestStatus] = mapped_column(
         Enum(InterestStatus), nullable=False, default=InterestStatus.PENDING, index=True
@@ -104,9 +103,9 @@ class ChatThread(TenantModel):
         UniqueConstraint("tenant_id", "user_a_id", "user_b_id", name="uq_thread_pair"),
     )
 
-    user_a_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
-    user_b_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
-    match_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    user_a_id: Mapped[uuid.UUID] = mapped_column(Uuid(), nullable=False, index=True)
+    user_b_id: Mapped[uuid.UUID] = mapped_column(Uuid(), nullable=False, index=True)
+    match_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(), nullable=True)
 
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     last_message_at: Mapped[datetime | None] = mapped_column(nullable=True)
@@ -114,7 +113,7 @@ class ChatThread(TenantModel):
 
     # Family mode: family members added to thread
     family_participants: Mapped[list[str]] = mapped_column(
-        JSONB, nullable=False, default=list
+        JSON, nullable=False, default=list
     )  # [{user_id, role, added_at}]
 
 
@@ -122,9 +121,9 @@ class Message(TenantModel):
     __tablename__ = "messages"
 
     thread_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, index=True
+        Uuid(), nullable=False, index=True
     )
-    sender_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    sender_id: Mapped[uuid.UUID] = mapped_column(Uuid(), nullable=False, index=True)
 
     message_type: Mapped[MessageType] = mapped_column(
         Enum(MessageType), nullable=False, default=MessageType.TEXT

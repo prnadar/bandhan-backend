@@ -20,7 +20,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
+from sqlalchemy import JSON, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import TenantModel
@@ -108,7 +108,7 @@ class UserProfile(TenantModel):
     __tablename__ = "profiles"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), nullable=False, unique=True, index=True
+        Uuid(), nullable=False, unique=True, index=True
     )
 
     # Basic info
@@ -131,7 +131,7 @@ class UserProfile(TenantModel):
     caste: Mapped[str | None] = mapped_column(String(200), nullable=True)
     sub_caste: Mapped[str | None] = mapped_column(String(200), nullable=True)
     mother_tongue: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    languages: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list)
+    languages: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
 
     # Physical
     height_cm: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
@@ -153,24 +153,24 @@ class UserProfile(TenantModel):
 
     # Media (stored as JSON arrays of S3 keys)
     photos: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSONB, nullable=False, default=list
+        JSON, nullable=False, default=list
     )  # [{key, url, is_primary, approved}]
     intro_videos: Mapped[list[dict[str, Any]]] = mapped_column(
-        JSONB, nullable=False, default=list
+        JSON, nullable=False, default=list
     )
     voice_note_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Partner preferences (stored as flexible JSON)
-    partner_prefs: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    partner_prefs: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
 
     # Family details
-    family_details: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    family_details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
 
     # Kundali / astrology
     birth_time: Mapped[str | None] = mapped_column(String(10), nullable=True)  # HH:MM
     birth_place: Mapped[str | None] = mapped_column(String(200), nullable=True)
     is_manglik: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    kundali_data: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
+    kundali_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
 
     # NRI-specific
     visa_status: Mapped[str | None] = mapped_column(String(100), nullable=True)

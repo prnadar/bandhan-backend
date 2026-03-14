@@ -7,8 +7,7 @@ from datetime import datetime
 
 import enum
 
-from sqlalchemy import BigInteger, Boolean, Enum, Integer, Numeric, String, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import BigInteger, Boolean, Enum, Integer, JSON, Numeric, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import TenantModel
@@ -31,7 +30,7 @@ class PaymentGateway(str, enum.Enum):
 class Subscription(TenantModel):
     __tablename__ = "subscriptions"
 
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), nullable=False, index=True)
 
     plan: Mapped[str] = mapped_column(String(50), nullable=False)  # silver | gold | platinum
     status: Mapped[SubscriptionStatus] = mapped_column(
@@ -56,7 +55,7 @@ class Subscription(TenantModel):
     monthly_contacts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     monthly_video_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    raw_webhook_data: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    raw_webhook_data: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
     user: Mapped["User"] = relationship("User", back_populates="subscriptions")
 
@@ -66,7 +65,7 @@ class CreditTransaction(TenantModel):
 
     __tablename__ = "credit_transactions"
 
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), nullable=False, index=True)
     amount: Mapped[int] = mapped_column(Integer, nullable=False)  # positive=credit, negative=debit
     balance_after: Mapped[int] = mapped_column(Integer, nullable=False)
     description: Mapped[str] = mapped_column(String(255), nullable=False)

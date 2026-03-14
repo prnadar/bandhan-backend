@@ -8,8 +8,7 @@ from datetime import datetime
 
 import enum
 
-from sqlalchemy import Enum, String, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import Enum, JSON, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import TenantModel
@@ -42,7 +41,7 @@ class Verification(TenantModel):
         ),
     )
 
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), nullable=False, index=True)
 
     verification_type: Mapped[VerificationType] = mapped_column(
         Enum(VerificationType), nullable=False
@@ -58,7 +57,7 @@ class Verification(TenantModel):
     expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     # Raw provider response (redacted of PII before storage)
-    provider_response: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    provider_response: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
     # Trust score contribution for this verification type
     trust_points: Mapped[int] = mapped_column(nullable=False, default=0)
