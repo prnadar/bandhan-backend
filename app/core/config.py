@@ -25,19 +25,19 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
 
     # ── Database ─────────────────────────────────────────────────────────
-    DATABASE_URL: str
-    DB_POOL_SIZE: int = 20
-    DB_MAX_OVERFLOW: int = 40
+    DATABASE_URL: str = "sqlite+aiosqlite:///./bandhan_demo.db"
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 10
     DB_POOL_TIMEOUT: int = 30
 
     # ── Redis ────────────────────────────────────────────────────────────
     REDIS_URL: str = "redis://localhost:6379"
 
     # ── Auth0 ────────────────────────────────────────────────────────────
-    AUTH0_DOMAIN: str
-    AUTH0_CLIENT_ID: str
-    AUTH0_CLIENT_SECRET: str
-    AUTH0_AUDIENCE: str
+    AUTH0_DOMAIN: str = ""
+    AUTH0_CLIENT_ID: str = ""
+    AUTH0_CLIENT_SECRET: str = ""
+    AUTH0_AUDIENCE: str = ""
 
     # ── AWS / S3 ─────────────────────────────────────────────────────────
     AWS_ACCESS_KEY_ID: str = ""
@@ -97,7 +97,16 @@ class Settings(BaseSettings):
     @classmethod
     def parse_origins(cls, v: str | list[str]) -> list[str]:
         if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",")]
+            v = v.strip()
+            # Handle JSON array format: ["url1","url2"]
+            if v.startswith("["):
+                import json
+                try:
+                    return json.loads(v)
+                except Exception:
+                    pass
+            # Handle comma-separated format
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
 
     @property
