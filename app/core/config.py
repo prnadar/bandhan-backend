@@ -5,7 +5,7 @@ All values sourced from environment variables — 12-factor compliant.
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import AnyHttpUrl, EmailStr, field_validator
+from pydantic import AnyHttpUrl, EmailStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: Literal["development", "staging", "production"] = "development"
     DEBUG: bool = False
     API_PREFIX: str = "/api/v1"
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
+    ALLOWED_ORIGINS: str = "http://localhost:3000,https://frontend-black-psi-12.vercel.app"
 
     # ── Database ─────────────────────────────────────────────────────────
     DATABASE_URL: str = "sqlite+aiosqlite:///./bandhan_demo.db"
@@ -93,21 +93,17 @@ class Settings(BaseSettings):
     GOLD_PRICE_INR: int = 249900    # Rs 2,499
     PLATINUM_PRICE_INR: int = 399900  # Rs 3,999
 
-    @field_validator("ALLOWED_ORIGINS", mode="before")
-    @classmethod
-    def parse_origins(cls, v: str | list[str]) -> list[str]:
-        if isinstance(v, str):
-            v = v.strip()
-            # Handle JSON array format: ["url1","url2"]
-            if v.startswith("["):
-                import json
-                try:
-                    return json.loads(v)
-                except Exception:
-                    pass
-            # Handle comma-separated format
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
-        return v
+    @property
+    def allowed_origins_list(self) -> list[str]:
+        """Parse ALLOWED_ORIGINS string into a list for CORS middleware."""
+        v = self.ALLOWED_ORIGINS.strip()
+        if v.startswith("["):
+            import json
+            try:
+                return json.loads(v)
+            except Exception:
+                pass
+        return [o.strip() for o in v.split(",") if o.strip()]
 
     @property
     def is_production(self) -> bool:
