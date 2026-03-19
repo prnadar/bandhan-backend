@@ -60,8 +60,24 @@ async def update_profile(
         )
     )
     profile = result.scalar_one_or_none()
+
     if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
+        # Auto-create profile for new users (upsert behaviour)
+        from sqlalchemy import text as sa_text
+        tenant_result = await db.execute(
+            sa_text("SELECT id FROM tenants WHERE slug = 'bandhan' LIMIT 1")
+        )
+        tenant_row = tenant_result.fetchone()
+        tenant_uuid = tenant_row[0] if tenant_row else None
+
+        profile = UserProfile(
+            id=uuid.uuid4(),
+            tenant_id=tenant_uuid,
+            user_id=user_id,
+        )
+        db.add(profile)
+        await db.flush()
+        logger.info("profile_auto_created", user_id=str(user_id))
 
     update_data = payload.model_dump(exclude_none=True)
     for key, value in update_data.items():
