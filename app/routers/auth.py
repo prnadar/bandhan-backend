@@ -10,9 +10,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.logging import get_logger
 from app.core.tenancy import get_current_tenant_slug
+
+settings = get_settings()
 from app.models.user import User
 from app.schemas.auth import OTPVerifyRequest, RegisterRequest, TokenResponse
 from app.schemas.common import APIResponse
