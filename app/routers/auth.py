@@ -75,11 +75,16 @@ async def verify_otp_endpoint(
     is_new = user is None
 
     if is_new:
-        # tenant_id is resolved from slug — simplified here
-        import uuid
+        from sqlalchemy import text
+        tenant_result = await db.execute(
+            text("SELECT id FROM tenants WHERE slug = :slug LIMIT 1"),
+            {"slug": tenant_slug}
+        )
+        tenant_row = tenant_result.fetchone()
+        tenant_uuid = tenant_row[0] if tenant_row else None
 
         user = User(
-            tenant_id=uuid.uuid4(),  # replaced with actual tenant UUID lookup in Sprint 2
+            tenant_id=tenant_uuid,
             phone=payload.phone,
             is_phone_verified=True,
         )
