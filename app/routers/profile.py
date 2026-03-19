@@ -43,7 +43,7 @@ async def get_profile(
     profile = result.scalar_one_or_none()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
-    return APIResponse(success=True, data=ProfileRead.model_validate(profile))
+    return APIResponse(success=True, data=ProfileRead.model_validate(profile, from_attributes=True))
 
 
 @router.put("/{user_id}", response_model=APIResponse[ProfileRead])
@@ -105,9 +105,10 @@ async def update_profile(
 
     profile.completeness_score = compute_profile_completeness(profile)
     await db.flush()
+    await db.refresh(profile)
 
     logger.info("profile_updated", user_id=str(user_id))
-    return APIResponse(success=True, data=ProfileRead.model_validate(profile))
+    return APIResponse(success=True, data=ProfileRead.model_validate(profile, from_attributes=True))
 
 
 @router.post("/photos/upload-url", response_model=APIResponse[dict])
