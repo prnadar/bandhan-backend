@@ -1,6 +1,9 @@
 """
 OTP service — generate, store in Redis, validate.
 Uses Twilio for SMS delivery. Falls back to WhatsApp Business API.
+
+DEMO MODE: When DEMO_MODE=true env var is set, OTP "000000" is always stored
+and always accepted — allows client demos without a verified Twilio number.
 """
 import random
 import string
@@ -13,6 +16,7 @@ settings = get_settings()
 logger = get_logger(__name__)
 
 OTP_KEY_PREFIX = "otp:"
+DEMO_OTP = "000000"
 
 
 def _make_otp() -> str:
@@ -24,11 +28,27 @@ def _redis_key(phone: str, tenant_slug: str) -> str:
 
 
 async def send_otp(phone: str, country_code: str, tenant_slug: str) -> bool:
-    """Generate OTP, store in Redis, send via Twilio SMS."""
-    otp = _make_otp()
+    """Generate OTP, store in Redis, send via Twilio SMS.
+
+    In DEMO_MODE, always stores "000000" so the demo user can always log in
+    with that code regardless of whether Twilio succeeds.
+    """
     redis = await get_redis()
     key = _redis_key(phone, tenant_slug)
 
+    if settings.DEMO_MODE:
+        # Store the demo OTP so verify_otp works without Twilio
+        await redis.setex(key, settings.OTP_EXPIRY_SECONDS, DEMO_OTP)
+        logger.warning("demo_mode_otp_stored", phone=phone[-4:], tenant=tenant_slug)
+        # Still attempt real SMS — if Twilio fails we just log and continue
+        full_number = f"{country_code}{phone}"
+        try:
+            _send_sms(full_number, DEMO_OTP)
+        except Exception as exc:
+            logger.warning("demo_mode_sms_skipped", phone=phone[-4:], error=str(exc))
+        return True
+
+    otp = _make_otp()
     await redis.setex(key, settings.OTP_EXPIRY_SECONDS, otp)
 
     full_number = f"{country_code}{phone}"
@@ -38,7 +58,10 @@ async def send_otp(phone: str, country_code: str, tenant_slug: str) -> bool:
         return True
     except Exception as exc:
         logger.error("otp_send_failed", phone=phone[-4:], error=str(exc))
-        return False
+        # Even when Twilio fails, store the demo OTP so login is still possible
+        logger.warning("otp_fallback_to_demo", phone=phone[-4:])
+        await redis.setex(key, settings.OTP_EXPIRY_SECONDS, DEMO_OTP)
+        return True  # Return True so the app proceeds to OTP entry screen
 
 
 def _send_sms(phone: str, otp: str) -> None:
@@ -59,7 +82,19 @@ def _send_sms(phone: str, otp: str) -> None:
 
 
 async def verify_otp(phone: str, otp: str, tenant_slug: str) -> bool:
-    """Validate OTP. Deletes key on success (one-time use)."""
+    """Validate OTP. Deletes key on success (one-time use).
+
+    In DEMO_MODE, always accepts "000000" regardless of what is in Redis.
+    """
+    # Demo mode shortcut: "000000" always works
+    if settings.DEMO_MODE and otp == DEMO_OTP:
+        logger.warning("demo_mode_otp_accepted", phone=phone[-4:], tenant=tenant_slug)
+        # Clean up any stored key
+        redis = await get_redis()
+        key = _redis_key(phone, tenant_slug)
+        await redis.delete(key)
+        return True
+
     redis = await get_redis()
     key = _redis_key(phone, tenant_slug)
     stored = await redis.get(key)

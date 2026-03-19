@@ -84,6 +84,10 @@ class Settings(BaseSettings):
     OTP_EXPIRY_SECONDS: int = 300
     OTP_LENGTH: int = 6
 
+    # ── Demo Mode ────────────────────────────────────────────────────────
+    # When DEMO_MODE=true, OTP "000000" is always accepted (for client demos)
+    DEMO_MODE: bool = False
+
     # ── Celery ───────────────────────────────────────────────────────────
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
