@@ -37,16 +37,19 @@ def _decode_token(token: str) -> dict[str, Any]:
             user_id = token[5:]
             logger.debug("demo_token_accepted", user_id=user_id)
             return {"sub": user_id, "user_id": user_id}
-        # Also accept placeholder token from verify-otp (treat as demo)
+        # Accept placeholder token — extract user_id from request context not possible here
+        # so we return a special marker; profile router must handle this gracefully
         if token == "__placeholder_implement_auth0_exchange__":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Use demo token format: demo:<user_id>",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        # In demo mode, accept ANY token as the user_id
+            # Can't extract user_id from placeholder — return a dummy that routes to guest
+            logger.warning("demo_placeholder_token_used")
+            return {"sub": "demo-placeholder", "user_id": "demo-placeholder"}
+        # In demo mode, accept ANY token as the user_id (demo:<uuid> or raw uuid)
+        if token.startswith("demo:"):
+            user_id = token[5:]
+        else:
+            user_id = token
         logger.debug("demo_mode_token_accepted", token_prefix=token[:8])
-        return {"sub": token, "user_id": token}
+        return {"sub": user_id, "user_id": user_id}
 
     jwks = _get_jwks()
     key_set = JsonWebKey.import_key_set(jwks)
