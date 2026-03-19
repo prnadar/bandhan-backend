@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     )
 
     # ── App ──────────────────────────────────────────────────────────────
-    APP_NAME: str = "Bandhan API"
+    APP_NAME: str = "Match4Marriage API"
     APP_VERSION: str = "1.0.0"
     ENVIRONMENT: Literal["development", "staging", "production"] = "development"
     DEBUG: bool = False
