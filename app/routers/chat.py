@@ -160,7 +160,11 @@ async def list_threads(
     db: Annotated[AsyncSession, Depends(get_db)] = None,
     current_user: Annotated[dict, Depends(get_current_user)] = None,
 ):
-    user_id = uuid.UUID(current_user["sub"])
+    try:
+        user_id = uuid.UUID(current_user["sub"])
+    except (ValueError, AttributeError):
+        from app.schemas.common import PaginatedResponse as PR
+        return PR(items=[], total=0, page=page, pages=0)
     offset = (page - 1) * limit
 
     result = await db.execute(
