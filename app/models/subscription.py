@@ -7,7 +7,7 @@ from datetime import datetime
 
 import enum
 
-from sqlalchemy import BigInteger, Boolean, Enum, Integer, JSON, Numeric, String, UniqueConstraint, Uuid
+from sqlalchemy import BigInteger, Boolean, Enum, ForeignKey, Integer, JSON, Numeric, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import TenantModel
@@ -30,7 +30,7 @@ class PaymentGateway(str, enum.Enum):
 class Subscription(TenantModel):
     __tablename__ = "subscriptions"
 
-    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     plan: Mapped[str] = mapped_column(String(50), nullable=False)  # silver | gold | platinum
     status: Mapped[SubscriptionStatus] = mapped_column(

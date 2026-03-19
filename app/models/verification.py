@@ -8,7 +8,7 @@ from datetime import datetime
 
 import enum
 
-from sqlalchemy import Enum, JSON, String, UniqueConstraint, Uuid
+from sqlalchemy import Enum, ForeignKey, JSON, String, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import TenantModel
@@ -41,7 +41,7 @@ class Verification(TenantModel):
         ),
     )
 
-    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     verification_type: Mapped[VerificationType] = mapped_column(
         Enum(VerificationType), nullable=False
