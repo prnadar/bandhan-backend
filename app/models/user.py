@@ -13,6 +13,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     Enum,
+    ForeignKey,
     Integer,
     Numeric,
     SmallInteger,
@@ -108,7 +109,7 @@ class UserProfile(TenantModel):
     __tablename__ = "profiles"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(), nullable=False, unique=True, index=True
+        Uuid(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
     )
 
     # Basic info
