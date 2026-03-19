@@ -70,10 +70,30 @@ async def update_profile(
         tenant_row = tenant_result.fetchone()
         tenant_uuid = tenant_row[0] if tenant_row else None
 
+        # Ensure user exists in users table (required for FK)
+        from sqlalchemy import text as sa_text2
+        user_exists = await db.execute(
+            sa_text2("SELECT id FROM users WHERE id = :uid LIMIT 1"),
+            {"uid": str(user_id)}
+        )
+        if not user_exists.fetchone():
+            # Create user record if missing
+            await db.execute(
+                sa_text2("""
+                    INSERT INTO users (id, tenant_id, is_phone_verified, created_at, updated_at)
+                    VALUES (:uid, :tid, true, NOW(), NOW())
+                    ON CONFLICT (id) DO NOTHING
+                """),
+                {"uid": str(user_id), "tid": str(tenant_uuid)}
+            )
+            await db.flush()
+
         profile = UserProfile(
             id=uuid.uuid4(),
             tenant_id=tenant_uuid,
             user_id=user_id,
+            first_name="",
+            last_name="",
         )
         db.add(profile)
         await db.flush()
