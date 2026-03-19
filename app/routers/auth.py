@@ -94,10 +94,15 @@ async def verify_otp_endpoint(
     else:
         user.is_phone_verified = True
 
-    # Exchange for Auth0 token via client credentials / machine-to-machine
-    # Actual Auth0 token exchange implemented in Sprint 2 with Auth0 Management API
+    # In demo mode (no Auth0), issue a demo token accepted by security middleware
+    # In production, replace with real Auth0 M2M token exchange
+    if not settings.AUTH0_DOMAIN:
+        access_token = f"demo:{str(user.id)}"
+    else:
+        access_token = "__placeholder_implement_auth0_exchange__"
+
     token_data = TokenResponse(
-        access_token="__placeholder_implement_auth0_exchange__",
+        access_token=access_token,
         expires_in=86400,
         user_id=str(user.id),
         is_new_user=is_new,
