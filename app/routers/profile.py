@@ -42,7 +42,33 @@ async def get_profile(
     )
     profile = result.scalar_one_or_none()
     if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
+        # Auto-create an empty profile for authenticated users fetching their own profile
+        # This prevents 404 on first app load before onboarding completes
+        from sqlalchemy import text as sa_text
+        tenant_result = await db.execute(
+            sa_text("SELECT id FROM tenants WHERE slug = :slug LIMIT 1"),
+            {"slug": tenant_slug}
+        )
+        tenant_row = tenant_result.fetchone()
+        tenant_uuid = tenant_row[0] if tenant_row else None
+
+        # Only auto-create if the requesting user is fetching their own profile
+        requesting_user_id = str(current_user.get("sub", ""))
+        if requesting_user_id != str(user_id):
+            raise HTTPException(status_code=404, detail="Profile not found")
+
+        profile = UserProfile(
+            id=uuid.uuid4(),
+            tenant_id=tenant_uuid,
+            user_id=user_id,
+            first_name="",
+            last_name="",
+        )
+        db.add(profile)
+        await db.flush()
+        await db.refresh(profile)
+        logger.info("profile_auto_created_on_get", user_id=str(user_id))
+
     return APIResponse(success=True, data=ProfileRead.model_validate(profile, from_attributes=True))
 
 
