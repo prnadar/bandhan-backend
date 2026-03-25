@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: Literal["development", "staging", "production"] = "development"
     DEBUG: bool = False
     API_PREFIX: str = "/api/v1"
-    ALLOWED_ORIGINS: str = "http://localhost:3000,https://frontend-black-psi-12.vercel.app"
+    ALLOWED_ORIGINS: str = "http://localhost:3000,https://frontend-black-psi-12.vercel.app,https://match4marriage.com,https://www.match4marriage.com"
 
     # ── Database ─────────────────────────────────────────────────────────
     DATABASE_URL: str = "sqlite+aiosqlite:///./bandhan_demo.db"
@@ -96,6 +96,19 @@ class Settings(BaseSettings):
     SILVER_PRICE_INR: int = 89900   # Rs 899
     GOLD_PRICE_INR: int = 249900    # Rs 2,499
     PLATINUM_PRICE_INR: int = 399900  # Rs 3,999
+
+    # ── Subscription plans (prices in pence — GBP diaspora / UK) ─────────
+    SILVER_PRICE_GBP: int = 999     # £9.99
+    GOLD_PRICE_GBP: int = 2499      # £24.99
+    PLATINUM_PRICE_GBP: int = 3999  # £39.99
+
+    # Stripe prices in pence (GBP × 100)
+    SILVER_PRICE_GBP: int = 999     # £9.99
+    GOLD_PRICE_GBP: int = 2499      # £24.99
+    PLATINUM_PRICE_GBP: int = 3999  # £39.99
+
+    # Stripe publishable key (returned to frontend for Razorpay-style flows if needed)
+    STRIPE_PUBLISHABLE_KEY: str = ""
 
     @property
     def allowed_origins_list(self) -> list[str]:

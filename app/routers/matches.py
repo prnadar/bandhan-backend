@@ -173,6 +173,42 @@ async def get_received_interests(
     )
 
 
+@router.get("/interests/sent", response_model=PaginatedResponse[InterestRead])
+async def get_sent_interests(
+    page: int = 1,
+    limit: int = 20,
+    db: Annotated[AsyncSession, Depends(get_db)] = None,
+    current_user: Annotated[dict, Depends(get_current_user)] = None,
+):
+    """Returns paginated list of interests the current user has sent, with status."""
+    user_id = _get_user_uuid(current_user)
+    offset = (page - 1) * limit
+
+    if not user_id:
+        return PaginatedResponse(items=[], total=0, page=page, pages=0)
+
+    count_result = await db.execute(
+        select(func.count()).where(
+            Interest.sender_id == user_id,
+            Interest.deleted_at.is_(None),
+        )
+    )
+    total = count_result.scalar()
+
+    result = await db.execute(
+        select(Interest)
+        .where(Interest.sender_id == user_id, Interest.deleted_at.is_(None))
+        .order_by(Interest.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    interests = result.scalars().all()
+
+    return PaginatedResponse.create(
+        [InterestRead.model_validate(i) for i in interests], total, page, limit
+    )
+
+
 @router.post("/quiz/submit", response_model=APIResponse[CompatibilityScoreRead])
 async def submit_quiz(
     payload: QuizSubmitRequest,

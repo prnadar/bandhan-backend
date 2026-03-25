@@ -7,18 +7,18 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from slowapi.util import get_remote_address
 
 from app.core.config import get_settings
 from app.core.database import engine
 from app.core.logging import configure_logging, get_logger
+from app.core.rate_limit import limiter  # shared Redis-backed Limiter
 from app.core.redis import close_redis
 from app.core.tenancy import TenantMiddleware
 from app.models import *  # noqa: F401,F403 — register all models with Alembic
-from app.routers import auth, chat, matches, profile, reports, subscriptions
+from app.routers import auth, chat, health, matches, notifications, profile, reports, subscriptions
 
 settings = get_settings()
 configure_logging(debug=settings.DEBUG)
@@ -33,8 +33,6 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
     logger.info("shutdown")
 
-
-limiter = Limiter(key_func=get_remote_address, default_limits=[settings.RATE_LIMIT_DEFAULT])
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -69,11 +67,13 @@ app.include_router(matches.router, prefix=PREFIX)
 app.include_router(chat.router, prefix=PREFIX)
 app.include_router(subscriptions.router, prefix=PREFIX)
 app.include_router(reports.router, prefix=PREFIX)
+app.include_router(notifications.router, prefix=PREFIX)
+app.include_router(health.router, prefix=PREFIX)
 
 
 # ── Health + meta ─────────────────────────────────────────────────────────────
 @app.get("/health")
-async def health():
+async def health_simple():
     return {"status": "ok", "version": settings.APP_VERSION}
 
 
