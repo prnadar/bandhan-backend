@@ -342,7 +342,7 @@ async def generate_daily_matches(
 ) -> list[dict[str, Any]]:
     """
     Generate top-5 matches for a user.
-    Called by Celery beat task at 05:30 IST daily.
+    Called by Celery beat task at 06:00 UK time daily.
 
     Strategy:
     1. Fetch user profile + personality scores + prefs
@@ -353,8 +353,121 @@ async def generate_daily_matches(
     6. Return top DAILY_MATCH_COUNT
     """
     logger.info("generating_daily_matches", user_id=str(user_id), tenant=str(tenant_id))
-    # NOTE: Full implementation in Sprint 2.
-    return []
+
+    try:
+        from sqlalchemy import and_, or_, select
+        from app.models.user import Gender, User, UserProfile
+        from app.models.match import Match, MatchStatus
+        from datetime import date as date_cls
+
+        # 1. Get requesting user's profile
+        result = await db.execute(
+            select(UserProfile).where(
+                UserProfile.user_id == user_id,
+                UserProfile.deleted_at.is_(None),
+            )
+        )
+        user_profile = result.scalar_one_or_none()
+        if user_profile is None:
+            logger.warning("no_profile_for_user", user_id=str(user_id))
+            return []
+
+        # 2. Determine opposite gender
+        if user_profile.gender == Gender.MALE:
+            opposite_gender = Gender.FEMALE
+        elif user_profile.gender == Gender.FEMALE:
+            opposite_gender = Gender.MALE
+        else:
+            opposite_gender = None  # match everyone for 'other'
+
+        # 3. Candidate users — same tenant, active, not self
+        users_q = select(User).where(
+            User.tenant_id == tenant_id,
+            User.id != user_id,
+            User.is_active.is_(True),
+            User.deleted_at.is_(None),
+        )
+        users_result = await db.execute(users_q)
+        candidate_users = users_result.scalars().all()
+
+        if not candidate_users:
+            logger.info("no_candidates_found", user_id=str(user_id))
+            return []
+
+        # 4. Score candidates
+        prefs = user_profile.partner_prefs or {}
+        scored = []
+        for cu in candidate_users:
+            cp_result = await db.execute(
+                select(UserProfile).where(
+                    UserProfile.user_id == cu.id,
+                    UserProfile.deleted_at.is_(None),
+                )
+            )
+            cp = cp_result.scalar_one_or_none()
+            if cp is None:
+                continue
+
+            # Gender filter
+            if opposite_gender is not None and cp.gender != opposite_gender:
+                continue
+
+            # Hard filters
+            if not passes_hard_filters(cp, prefs):
+                continue
+
+            score_result = compute_compatibility(user_profile, cp)
+            scored.append({
+                "user_id": cu.id,
+                "compatibility_score": score_result["score"],
+                "breakdown": score_result["breakdown"],
+            })
+
+        # 5. Sort and take top N
+        scored.sort(key=lambda x: x["compatibility_score"], reverse=True)
+        top = scored[:DAILY_MATCH_COUNT]
+
+        # 6. Upsert Match records
+        today_str = date_cls.today().isoformat()
+        output = []
+        for m in top:
+            existing_result = await db.execute(
+                select(Match).where(
+                    and_(
+                        or_(
+                            and_(Match.user_a_id == user_id, Match.user_b_id == m["user_id"]),
+                            and_(Match.user_a_id == m["user_id"], Match.user_b_id == user_id),
+                        ),
+                        Match.match_date == today_str,
+                        Match.deleted_at.is_(None),
+                    )
+                )
+            )
+            if existing_result.scalar_one_or_none() is None:
+                new_match = Match(
+                    tenant_id=tenant_id,
+                    user_a_id=user_id,
+                    user_b_id=m["user_id"],
+                    compatibility_score=float(m["compatibility_score"]),
+                    compatibility_breakdown=m["breakdown"],
+                    status=MatchStatus.PENDING,
+                    match_date=today_str,
+                )
+                db.add(new_match)
+                await db.flush()
+
+            output.append({
+                "user_id": str(m["user_id"]),
+                "compatibility_score": m["compatibility_score"],
+                "breakdown": m["breakdown"],
+            })
+
+        logger.info("daily_matches_generated", user_id=str(user_id), count=len(output))
+        return output
+
+    except Exception as exc:
+        logger.error("generate_daily_matches_error", user_id=str(user_id), error=str(exc))
+        return []
 
 
 def compute_kundali_score(
