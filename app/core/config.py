@@ -39,12 +39,18 @@ class Settings(BaseSettings):
     AUTH0_CLIENT_SECRET: str = ""
     AUTH0_AUDIENCE: str = ""
 
-    # ── AWS / S3 ─────────────────────────────────────────────────────────
+    # ── AWS / S3 (legacy) ──────────────────────────────────────────────
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
     AWS_S3_BUCKET: str = "bandhan-media-dev"
     AWS_REGION: str = "ap-south-1"
     AWS_CLOUDFRONT_DOMAIN: str = ""
+
+    # ── Cloudinary ──────────────────────────────────────────────────────
+    CLOUDINARY_CLOUD_NAME: str = ""
+    CLOUDINARY_API_KEY: str = ""
+    CLOUDINARY_API_SECRET: str = ""
+    CLOUDINARY_UPLOAD_FOLDER: str = "match4marriage"
 
     # ── Razorpay ─────────────────────────────────────────────────────────
     RAZORPAY_KEY_ID: str = ""
@@ -82,6 +88,12 @@ class Settings(BaseSettings):
     # ── Rate limiting ────────────────────────────────────────────────────
     RATE_LIMIT_DEFAULT: str = "100/minute"
     RATE_LIMIT_AUTH: str = "10/minute"
+
+    # ── Firebase ─────────────────────────────────────────────────────────
+    # Service account credentials for Firebase Admin SDK (phone auth verify)
+    FIREBASE_PROJECT_ID: str = ""
+    FIREBASE_CLIENT_EMAIL: str = ""
+    FIREBASE_PRIVATE_KEY: str = ""   # PEM key; literal \n accepted
 
     # ── OTP ──────────────────────────────────────────────────────────────
     OTP_EXPIRY_SECONDS: int = 300

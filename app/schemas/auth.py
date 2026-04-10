@@ -44,3 +44,15 @@ class TokenResponse(BaseSchema):
 
 class RefreshTokenRequest(BaseSchema):
     refresh_token: str
+
+
+class FirebaseVerifyRequest(BaseSchema):
+    """Payload for POST /auth/firebase-verify — exchange Firebase ID token for backend session."""
+    id_token: str
+
+
+class EmailRegisterRequest(BaseSchema):
+    """Payload for POST /auth/email-register — create/upsert user by email after web OTP verification."""
+    email: str
+    name: str = ""
+    gender: str = ""

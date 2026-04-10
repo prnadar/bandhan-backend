@@ -25,7 +25,7 @@ from app.core.tenancy import get_current_tenant_slug
 
 settings = get_settings()
 from app.models.user import User
-from app.schemas.auth import OTPVerifyRequest, RegisterRequest, TokenResponse
+from app.schemas.auth import EmailRegisterRequest, FirebaseVerifyRequest, OTPVerifyRequest, RegisterRequest, TokenResponse
 from app.schemas.common import APIResponse
 from app.services.email import send_verification_email, send_welcome_email
 from app.services.otp import send_otp, verify_otp
@@ -137,6 +137,99 @@ async def verify_otp_endpoint(
     return APIResponse(success=True, data=token_data)
 
 
+@router.post("/firebase-verify", response_model=APIResponse[TokenResponse])
+async def firebase_verify_endpoint(
+    payload: FirebaseVerifyRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    tenant_slug: str = Depends(get_current_tenant_slug),
+):
+    """
+    Verify a Firebase ID token (from phone auth) and return a backend session token.
+    Upserts the user record by phone number extracted from the decoded token.
+
+    The existing Twilio OTP endpoints remain available as a fallback.
+    """
+    from app.core.firebase import verify_firebase_id_token
+
+    # 1. Verify the Firebase ID token
+    try:
+        decoded_token = verify_firebase_id_token(payload.id_token)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        )
+    except Exception as exc:
+        logger.warning("firebase_token_invalid", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired Firebase token",
+        )
+
+    # 2. Extract phone number — Firebase phone tokens always include `phone_number`
+    phone_number: str | None = decoded_token.get("phone_number")
+    if not phone_number:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Firebase token does not contain a phone number",
+        )
+
+    # Strip leading + and country code to get local digits
+    # Store the full E.164 number to match existing user records
+    phone_e164 = phone_number  # e.g. "+919999999999"
+    # Normalise to 10-digit local if possible (matches existing User.phone format)
+    local_phone = phone_e164.lstrip("+")
+    if local_phone.startswith("91") and len(local_phone) == 12:
+        local_phone = local_phone[2:]  # strip 91 country code → 10 digits
+    elif local_phone.startswith("44") and len(local_phone) == 12:
+        local_phone = local_phone[2:]  # strip 44 country code → 10 digits
+
+    # 3. Upsert user by phone (same logic as verify_otp_endpoint)
+    result = await db.execute(
+        select(User).where(
+            User.phone == local_phone,
+            User.deleted_at.is_(None),
+        )
+    )
+    user = result.scalar_one_or_none()
+    is_new = user is None
+
+    if is_new:
+        from sqlalchemy import text
+        tenant_result = await db.execute(
+            text("SELECT id FROM tenants WHERE slug = :slug LIMIT 1"),
+            {"slug": tenant_slug},
+        )
+        tenant_row = tenant_result.fetchone()
+        tenant_uuid = tenant_row[0] if tenant_row else None
+
+        user = User(
+            tenant_id=tenant_uuid,
+            phone=local_phone,
+            is_phone_verified=True,
+        )
+        db.add(user)
+        await db.flush()
+        logger.info("firebase_new_user_created", user_id=str(user.id), tenant=tenant_slug)
+    else:
+        user.is_phone_verified = True
+
+    # 4. Issue session token (demo token until Auth0 is wired)
+    if not settings.AUTH0_DOMAIN:
+        access_token = f"demo:{str(user.id)}"
+    else:
+        access_token = "__placeholder_implement_auth0_exchange__"
+
+    token_data = TokenResponse(
+        access_token=access_token,
+        expires_in=86400,
+        user_id=str(user.id),
+        is_new_user=is_new,
+    )
+
+    return APIResponse(success=True, data=token_data)
+
+
 @router.post("/resend-otp", response_model=APIResponse[None])
 async def resend_otp(
     payload: RegisterRequest,
@@ -146,6 +239,73 @@ async def resend_otp(
     if not sent:
         raise HTTPException(status_code=503, detail="Could not resend OTP")
     return APIResponse(success=True, message="OTP resent")
+
+
+# ── Web email registration ────────────────────────────────────────────────────
+
+
+@router.post("/email-register", response_model=APIResponse[TokenResponse])
+async def email_register_endpoint(
+    payload: EmailRegisterRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    tenant_slug: str = Depends(get_current_tenant_slug),
+):
+    """
+    Upsert a user by email after the web OTP flow has been verified client-side.
+    Called by the Next.js frontend after a successful /api/verify-otp check.
+
+    Does NOT perform OTP verification itself — that is the caller's responsibility.
+    """
+    import re as _re
+
+    email = payload.email.lower().strip()
+    if not email or not _re.match(r"^[^@]+@[^@]+\.[^@]+$", email):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid email address",
+        )
+
+    result = await db.execute(
+        select(User).where(
+            User.email == email,
+            User.deleted_at.is_(None),
+        )
+    )
+    user = result.scalar_one_or_none()
+    is_new = user is None
+
+    if is_new:
+        from sqlalchemy import text
+        tenant_result = await db.execute(
+            text("SELECT id FROM tenants WHERE slug = :slug LIMIT 1"),
+            {"slug": tenant_slug},
+        )
+        tenant_row = tenant_result.fetchone()
+        tenant_uuid = tenant_row[0] if tenant_row else None
+
+        user = User(
+            tenant_id=tenant_uuid,
+            email=email,
+            is_email_verified=True,
+        )
+        db.add(user)
+        await db.flush()
+        logger.info("web_email_user_created", user_id=str(user.id), tenant=tenant_slug)
+    else:
+        user.is_email_verified = True
+
+    if not settings.AUTH0_DOMAIN:
+        access_token = f"demo:{str(user.id)}"
+    else:
+        access_token = "__placeholder_implement_auth0_exchange__"
+
+    token_data = TokenResponse(
+        access_token=access_token,
+        expires_in=86400,
+        user_id=str(user.id),
+        is_new_user=is_new,
+    )
+    return APIResponse(success=True, data=token_data)
 
 
 # ── Email verification endpoints ──────────────────────────────────────────────
