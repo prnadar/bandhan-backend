@@ -67,9 +67,12 @@ class Settings(BaseSettings):
     PINECONE_API_KEY: str = ""
     PINECONE_INDEX: str = "bandhan-profiles"
 
+    # ── VedAstro (Kundali matching) ──────────────────────────────────────
+    VEDASTRO_API_KEY: str = "FreeAPIUser"
+
     # ── Email ────────────────────────────────────────────────────────────
-    SENDGRID_API_KEY: str = ""
-    SENDGRID_FROM_EMAIL: EmailStr = "hello@bandhan.in"  # type: ignore[assignment]
+    RESEND_API_KEY: str = ""
+    RESEND_FROM_EMAIL: EmailStr = "hello@bandhan.in"  # type: ignore[assignment]
 
     # ── Multi-tenancy / White-label ───────────────────────────────────────
     # Each tenant gets their own subdomain: {slug}.bandhan.in

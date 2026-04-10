@@ -1,16 +1,14 @@
 """
-Email service — transactional emails via SendGrid REST API.
-Uses the `requests` library (no sendgrid SDK dependency).
+Email service — transactional emails via Resend API.
 
 All functions are async-compatible via asyncio.to_thread so the
 FastAPI event loop is never blocked by the synchronous HTTP call.
 """
 import asyncio
-import json
 import logging
 from typing import Any
 
-import requests
+import resend
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -18,77 +16,54 @@ from app.core.logging import get_logger
 settings = get_settings()
 logger = get_logger(__name__)
 
-_SENDGRID_SEND_URL = "https://api.sendgrid.com/v3/mail/send"
+
+def _configure_resend() -> None:
+    """Set the Resend API key (idempotent)."""
+    resend.api_key = settings.RESEND_API_KEY
+
 
 # ── Low-level helper ──────────────────────────────────────────────────────────
 
 
-def _sendgrid_post(payload: dict[str, Any]) -> bool:
-    """
-    Synchronous POST to SendGrid /v3/mail/send.
-    Returns True on success (2xx), False otherwise.
-    Runs inside asyncio.to_thread to keep the event loop free.
-    """
-    api_key = settings.SENDGRID_API_KEY
-    if not api_key:
-        logger.warning("sendgrid_api_key_missing — email not sent")
-        return False
-
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-
-    try:
-        response = requests.post(
-            _SENDGRID_SEND_URL,
-            headers=headers,
-            data=json.dumps(payload),
-            timeout=10,
-        )
-        if response.status_code in (200, 201, 202):
-            logger.info(
-                "email_sent",
-                to=payload.get("personalizations", [{}])[0].get("to", []),
-                subject=payload.get("subject"),
-                status=response.status_code,
-            )
-            return True
-        else:
-            logger.error(
-                "sendgrid_error",
-                status=response.status_code,
-                body=response.text[:500],
-            )
-            return False
-    except requests.RequestException as exc:
-        logger.error("sendgrid_request_failed", error=str(exc))
-        return False
-
-
-def _build_payload(
+def _resend_post(
     to_email: str,
     to_name: str,
     subject: str,
     html_content: str,
     plain_content: str = "",
-) -> dict[str, Any]:
-    """Build the SendGrid mail/send request body."""
-    from_email = str(settings.SENDGRID_FROM_EMAIL)
-    return {
-        "personalizations": [
-            {
-                "to": [{"email": to_email, "name": to_name}],
-            }
-        ],
-        "from": {"email": from_email, "name": "Match4Marriage"},
-        "reply_to": {"email": from_email, "name": "Match4Marriage Support"},
+) -> bool:
+    """
+    Synchronous call to Resend emails.send.
+    Returns True on success, False otherwise.
+    Runs inside asyncio.to_thread to keep the event loop free.
+    """
+    if not settings.RESEND_API_KEY:
+        logger.warning("resend_api_key_missing — email not sent")
+        return False
+
+    _configure_resend()
+    from_email = str(settings.RESEND_FROM_EMAIL)
+
+    params: dict[str, Any] = {
+        "from": f"Match4Marriage <{from_email}>",
+        "to": [to_email],
         "subject": subject,
-        "content": [
-            {"type": "text/plain", "value": plain_content or _html_to_plain(html_content)},
-            {"type": "text/html",  "value": html_content},
-        ],
+        "html": html_content,
+        "text": plain_content or _html_to_plain(html_content),
     }
+
+    try:
+        email = resend.Emails.send(params)
+        logger.info(
+            "email_sent",
+            to=to_email,
+            subject=subject,
+            id=email.get("id"),
+        )
+        return True
+    except Exception as exc:
+        logger.error("resend_error", error=str(exc), to=to_email)
+        return False
 
 
 def _html_to_plain(html: str) -> str:
@@ -134,7 +109,7 @@ async def send_verification_email(
         <tr>
           <td style="background:#c0392b; padding:32px; text-align:center;">
             <h1 style="color:#ffffff; margin:0; font-size:24px; letter-spacing:1px;">
-              💍 Match4Marriage
+              Match4Marriage
             </h1>
           </td>
         </tr>
@@ -170,8 +145,7 @@ async def send_verification_email(
         <tr>
           <td style="background:#f4f0ec; padding:20px 40px; text-align:center;">
             <p style="margin:0; font-size:12px; color:#aaaaaa;">
-              © 2025 Match4Marriage · All rights reserved ·
-              <a href="#" style="color:#c0392b; text-decoration:none;">Unsubscribe</a>
+              &copy; 2025 Match4Marriage &middot; All rights reserved
             </p>
           </td>
         </tr>
@@ -189,8 +163,9 @@ async def send_verification_email(
         "If you did not create an account, please ignore this email."
     )
 
-    payload = _build_payload(email, user_name, subject, html, plain)
-    return await asyncio.to_thread(_sendgrid_post, payload)
+    return await asyncio.to_thread(
+        _resend_post, email, user_name, subject, html, plain
+    )
 
 
 async def send_welcome_email(
@@ -206,7 +181,7 @@ async def send_welcome_email(
 
     Returns True on delivery success, False otherwise.
     """
-    subject = "Welcome to Match4Marriage — your journey begins 💍"
+    subject = "Welcome to Match4Marriage — your journey begins"
 
     html = f"""
 <!DOCTYPE html>
@@ -221,14 +196,14 @@ async def send_welcome_email(
         <tr>
           <td style="background:#c0392b; padding:32px; text-align:center;">
             <h1 style="color:#ffffff; margin:0; font-size:24px; letter-spacing:1px;">
-              💍 Match4Marriage
+              Match4Marriage
             </h1>
           </td>
         </tr>
         <tr>
           <td style="padding:36px 40px;">
             <p style="font-size:16px; color:#333333; margin:0 0 16px;">
-              Welcome, {user_name}! 🎉
+              Welcome, {user_name}!
             </p>
             <p style="font-size:15px; color:#555555; line-height:1.6; margin:0 0 20px;">
               Your email has been verified. You're now a verified member of Match4Marriage —
@@ -243,7 +218,7 @@ async def send_welcome_email(
                             border-radius:4px; margin-bottom:12px;">
                   <strong style="color:#333;">1. Complete your profile</strong>
                   <p style="margin:4px 0 0; font-size:13px; color:#777;">
-                    Profiles with photos get 8× more responses.
+                    Profiles with photos get 8&times; more responses.
                   </p>
                 </td>
               </tr>
@@ -266,8 +241,7 @@ async def send_welcome_email(
         <tr>
           <td style="background:#f4f0ec; padding:20px 40px; text-align:center;">
             <p style="margin:0; font-size:12px; color:#aaaaaa;">
-              © 2025 Match4Marriage · All rights reserved ·
-              <a href="#" style="color:#c0392b; text-decoration:none;">Unsubscribe</a>
+              &copy; 2025 Match4Marriage &middot; All rights reserved
             </p>
           </td>
         </tr>
@@ -282,14 +256,15 @@ async def send_welcome_email(
         f"Welcome, {user_name}!\n\n"
         "Your email has been verified. You are now a verified member of Match4Marriage.\n\n"
         "Next steps:\n"
-        "1. Complete your profile — profiles with photos get 8× more responses.\n"
+        "1. Complete your profile — profiles with photos get 8x more responses.\n"
         "2. Explore your daily matches — we curate 5 compatible profiles every morning.\n\n"
         "Wishing you all the very best on your journey.\n\n"
         "— The Match4Marriage Team"
     )
 
-    payload = _build_payload(email, user_name, subject, html, plain)
-    return await asyncio.to_thread(_sendgrid_post, payload)
+    return await asyncio.to_thread(
+        _resend_post, email, user_name, subject, html, plain
+    )
 
 
 async def send_interest_notification_email(
@@ -307,7 +282,7 @@ async def send_interest_notification_email(
 
     Returns True on delivery success, False otherwise.
     """
-    subject = f"{from_name} is interested in your profile 💌"
+    subject = f"{from_name} is interested in your profile"
 
     html = f"""
 <!DOCTYPE html>
@@ -322,13 +297,12 @@ async def send_interest_notification_email(
         <tr>
           <td style="background:#c0392b; padding:32px; text-align:center;">
             <h1 style="color:#ffffff; margin:0; font-size:24px; letter-spacing:1px;">
-              💍 Match4Marriage
+              Match4Marriage
             </h1>
           </td>
         </tr>
         <tr>
           <td style="padding:36px 40px; text-align:center;">
-            <p style="font-size:40px; margin:0 0 12px;">💌</p>
             <h2 style="color:#c0392b; font-size:22px; margin:0 0 16px;">
               You have a new interest!
             </h2>
@@ -342,7 +316,7 @@ async def send_interest_notification_email(
                style="display:inline-block; background:#c0392b; color:#ffffff; font-size:15px;
                       font-weight:bold; padding:14px 32px; border-radius:6px;
                       text-decoration:none; margin:0 0 28px;">
-              View Their Profile →
+              View Their Profile &rarr;
             </a>
             <p style="font-size:13px; color:#aaaaaa; line-height:1.5;">
               If you're not interested, simply ignore this notification or decline from within the
@@ -353,8 +327,7 @@ async def send_interest_notification_email(
         <tr>
           <td style="background:#f4f0ec; padding:20px 40px; text-align:center;">
             <p style="margin:0; font-size:12px; color:#aaaaaa;">
-              © 2025 Match4Marriage · All rights reserved ·
-              <a href="#" style="color:#c0392b; text-decoration:none;">Unsubscribe</a>
+              &copy; 2025 Match4Marriage &middot; All rights reserved
             </p>
           </td>
         </tr>
@@ -372,5 +345,6 @@ async def send_interest_notification_email(
         "— The Match4Marriage Team"
     )
 
-    payload = _build_payload(email, recipient_name, subject, html, plain)
-    return await asyncio.to_thread(_sendgrid_post, payload)
+    return await asyncio.to_thread(
+        _resend_post, email, recipient_name, subject, html, plain
+    )
