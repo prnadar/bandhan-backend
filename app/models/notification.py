@@ -49,7 +49,11 @@ class Notification(TenantModel):
     action_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 
     # Arbitrary extra data (actor profile, match score, etc.)
-    metadata: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    # NOTE: "metadata" is reserved by SQLAlchemy DeclarativeBase, so we use
+    # the Python name "extra_data" but keep the DB column as "metadata".
+    extra_data: Mapped[dict[str, Any] | None] = mapped_column(
+        "metadata", JSON, nullable=True
+    )
 
     read_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, default=None

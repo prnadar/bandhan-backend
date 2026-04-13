@@ -28,7 +28,7 @@ class NotificationCreate(BaseSchema):
     title: str
     body: str
     action_url: str | None = None
-    metadata: dict[str, Any] | None = None
+    extra_data: dict[str, Any] | None = None
 
 
 class NotificationRead(BaseSchema):
@@ -41,6 +41,6 @@ class NotificationRead(BaseSchema):
     body: str
     is_read: bool
     action_url: str | None
-    metadata: dict[str, Any] | None
+    extra_data: dict[str, Any] | None
     created_at: datetime
     read_at: datetime | None
