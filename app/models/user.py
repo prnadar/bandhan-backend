@@ -71,7 +71,7 @@ class User(TenantModel):
 
     # Auth identity
     auth0_sub: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-    phone: Mapped[str] = mapped_column(String(15), nullable=False, index=True)
+    phone: Mapped[str | None] = mapped_column(String(15), nullable=True, index=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
 
     # PII stored as hash for lookup; never store raw Aadhaar
