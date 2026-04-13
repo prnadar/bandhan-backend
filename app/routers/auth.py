@@ -291,8 +291,41 @@ async def email_register_endpoint(
         db.add(user)
         await db.flush()
         logger.info("web_email_user_created", user_id=str(user.id), tenant=tenant_slug)
+
+        # Bootstrap profile with name & gender from registration
+        from app.models.user import UserProfile
+        name_parts = (payload.name or "").strip().split(None, 1)
+        first_name = name_parts[0] if name_parts else ""
+        last_name = name_parts[1] if len(name_parts) > 1 else ""
+        gender_val = payload.gender.lower() if payload.gender else None
+
+        profile = UserProfile(
+            tenant_id=tenant_uuid,
+            user_id=user.id,
+            first_name=first_name,
+            last_name=last_name,
+            gender=gender_val if gender_val in ("male", "female", "other") else None,
+        )
+        db.add(profile)
+        await db.flush()
+        logger.info("web_email_profile_bootstrapped", user_id=str(user.id))
     else:
         user.is_email_verified = True
+        # Update profile name/gender if still empty
+        from app.models.user import UserProfile
+        result_p = await db.execute(
+            select(UserProfile).where(UserProfile.user_id == user.id)
+        )
+        existing_profile = result_p.scalar_one_or_none()
+        if existing_profile:
+            if not existing_profile.first_name and payload.name:
+                name_parts = payload.name.strip().split(None, 1)
+                existing_profile.first_name = name_parts[0] if name_parts else ""
+                existing_profile.last_name = name_parts[1] if len(name_parts) > 1 else ""
+            if not existing_profile.gender and payload.gender:
+                g = payload.gender.lower()
+                if g in ("male", "female", "other"):
+                    existing_profile.gender = g
 
     if not settings.AUTH0_DOMAIN:
         access_token = f"demo:{str(user.id)}"
