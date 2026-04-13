@@ -313,23 +313,10 @@ async def email_register_endpoint(
         await db.flush()
         logger.info("web_email_profile_bootstrapped", user_id=str(user.id))
     else:
-        user.is_email_verified = True
-        # Update profile name/gender if still empty
-        from app.models.user import Gender, UserProfile
-        result_p = await db.execute(
-            select(UserProfile).where(UserProfile.user_id == user.id)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists. Please log in instead.",
         )
-        existing_profile = result_p.scalar_one_or_none()
-        if existing_profile:
-            if not existing_profile.first_name and payload.name:
-                name_parts = payload.name.strip().split(None, 1)
-                existing_profile.first_name = name_parts[0] if name_parts else ""
-                existing_profile.last_name = name_parts[1] if len(name_parts) > 1 else ""
-            if not existing_profile.gender and payload.gender:
-                _g = payload.gender.lower()
-                ge = {"male": Gender.MALE, "female": Gender.FEMALE, "other": Gender.OTHER}.get(_g)
-                if ge:
-                    existing_profile.gender = ge
 
     if not settings.AUTH0_DOMAIN:
         access_token = f"demo:{str(user.id)}"
@@ -343,6 +330,28 @@ async def email_register_endpoint(
         is_new_user=is_new,
     )
     return APIResponse(success=True, data=token_data)
+
+
+# ── Email existence check ────────────────────────────────────────────────────
+
+
+@router.post("/check-email", response_model=APIResponse[dict])
+async def check_email_exists(
+    payload: EmailRegisterRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Return whether an email is already registered. Used before sending OTP."""
+    import re as _re
+
+    email = payload.email.lower().strip()
+    if not email or not _re.match(r"^[^@]+@[^@]+\.[^@]+$", email):
+        raise HTTPException(status_code=422, detail="Invalid email address")
+
+    result = await db.execute(
+        select(User).where(User.email == email, User.deleted_at.is_(None))
+    )
+    exists = result.scalar_one_or_none() is not None
+    return APIResponse(success=True, data={"exists": exists})
 
 
 # ── Email verification endpoints ──────────────────────────────────────────────
