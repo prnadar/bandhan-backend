@@ -23,7 +23,7 @@ from app.core.tenancy import get_current_tenant_slug
 from app.models.user import MaritalStatus, Religion, User, UserProfile
 from app.schemas.common import APIResponse, PaginatedResponse
 from app.schemas.user import ProfileCard, ProfileCreate, ProfileRead, ProfileUpdate
-from app.services.storage import generate_upload_url
+from app.services.storage import generate_photo_upload_signature, generate_upload_url
 from app.services.trust_score import compute_profile_completeness, compute_trust_score
 
 router = APIRouter(prefix="/profile", tags=["profile"])
@@ -320,7 +320,7 @@ async def get_photo_upload_url(
     current_user: Annotated[dict, Depends(get_current_user)] = None,
     tenant_slug: str = Depends(get_current_tenant_slug),
 ):
-    """Returns a pre-signed S3 PUT URL for direct browser upload."""
+    """Returns signed Cloudinary upload params for direct client photo upload."""
     ext_map = {
         "image/jpeg": "jpg",
         "image/jpg": "jpg",
@@ -330,11 +330,9 @@ async def get_photo_upload_url(
     ext = ext_map.get(content_type, "jpg")
     user_id = current_user.get("sub", "unknown")
 
-    result = generate_upload_url(
+    result = generate_photo_upload_signature(
         tenant_slug=tenant_slug,
         user_id=user_id,
-        media_type="photo",
-        content_type=content_type,
         file_extension=ext,
     )
     return APIResponse(success=True, data=result)

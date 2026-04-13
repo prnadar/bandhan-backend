@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     AUTH0_CLIENT_SECRET: str = ""
     AUTH0_AUDIENCE: str = ""
 
+    # ── Firebase Admin ───────────────────────────────────────────────────
+    FIREBASE_PROJECT_ID: str = ""
+    FIREBASE_CLIENT_EMAIL: str = ""
+    FIREBASE_PRIVATE_KEY: str = ""
+
     # ── AWS / S3 (legacy) ──────────────────────────────────────────────
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
