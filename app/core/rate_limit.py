@@ -26,13 +26,20 @@ settings = get_settings()
 
 # ── Single Limiter instance (Redis-backed in production) ─────────────────────
 # slowapi accepts any limits-compliant storage string.
-# When REDIS_URL is a valid Redis DSN, limits are stored in Redis (shared across
-# workers). Falls back gracefully to in-memory if Redis is unavailable at startup,
-# but production deployments should always have Redis configured.
+# Falls back to in-memory when Redis is unavailable.
+_storage = settings.REDIS_URL
+try:
+    import redis as _sync_redis
+    _r = _sync_redis.from_url(settings.REDIS_URL, socket_connect_timeout=2)
+    _r.ping()
+    _r.close()
+except Exception:
+    _storage = "memory://"
+
 limiter = Limiter(
     key_func=get_remote_address,
-    default_limits=[settings.RATE_LIMIT_DEFAULT],  # "100/minute" from config
-    storage_uri=settings.REDIS_URL,
+    default_limits=[settings.RATE_LIMIT_DEFAULT],
+    storage_uri=_storage,
 )
 
 # ── Named rate limit strings ──────────────────────────────────────────────────
